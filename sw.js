@@ -1,5 +1,5 @@
 // Service worker : fonctionnement 100 % hors ligne. Généré par tools/gen-sw.sh
-const VERSION = '202611212119';
+const VERSION = '202611212137';
 const CORE = 'ide-core-' + VERSION;
 const PATIENTS = 'ide-patients-v1';
 const CORE_FILES = [

@@ -371,65 +371,181 @@ route(/^\/patients\/([\w-]+)$/, (id) => {
 // =====================================================================
 // SIMULATION 3D
 // =====================================================================
-const PICK_ACTIONS = {
-  patient: ['identito', 'interroger', 'observer', 'conscience', 'pupilles', 'eva', 'examen', 'heure', 'stimuler', 'rassurer', 'pos_demi', 'pos_assis', 'pos_plat', 'pos_trend', 'pos_pls', 'repos', 'ajeun', 'relever', 'massage_mollet', 'contention', 'mce'],
-  monitor: ['scope'], sha: ['sha'], gants: ['gants'], tensio: ['pa'], thermo: ['temp'], gluco: ['glyc', 'cetone'], steth: ['ausculter'], oxy: ['spo2'], ecg: ['ecg'], bladder: ['bladder'],
-  kit: ['vvp', 'bilan', 'hemoc', 'ecbu', 'compression', 'cupt', 'diurese'], o2: ['o2_lun', 'o2_mhc'], phone: ['appeler'], chariot: ['chariot', 'mce'], dossier: ['allergies', 'tracer'], iv: ['stop_perf'], pharma: [],
+// Plateau d'instruments : on glisse l'instrument sur la bonne zone du corps
+const TI = {
+  sha: '<path d="M9 3h6M10 3v3h4V3M8 9a2 2 0 0 1 2-3h4a2 2 0 0 1 2 3v10a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2z"/><path d="M10 13h4"/>',
+  gants: '<path d="M7 21v-7l-2-3a1.5 1.5 0 0 1 2.5-1.5L9 11V5a1.5 1.5 0 0 1 3 0v5-6a1.5 1.5 0 0 1 3 0v6-4a1.5 1.5 0 0 1 3 0v9a7 7 0 0 1-3 6"/>',
+  bracelet: '<rect x="4" y="9" width="16" height="6" rx="3"/><path d="M8 12h5"/>',
+  tensio: '<circle cx="12" cy="13" r="7"/><path d="M12 13l3-3M12 6v1M8 4h8"/>',
+  oxy: '<path d="M8 4h8a2 2 0 0 1 2 2v6H6V6a2 2 0 0 1 2-2z"/><path d="M6 12l2 8h8l2-8M10 8h4"/>',
+  thermo: '<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/><path d="M12 9v7"/>',
+  gluco: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+  steth: '<path d="M6 3v6a4 4 0 0 0 8 0V3"/><path d="M10 13v3a4 4 0 0 0 8 0v-2"/><circle cx="18" cy="12" r="2"/>',
+  lampe: '<path d="M4 10h10l4-3v10l-4-3H4z"/><path d="M20 9l2-1M20 15l2 1M21 12h2"/>',
+  scope: '<path d="M3 12h4l2-5 4 10 2-5h6"/>',
+  ecg: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M5 12h3l2-3 3 6 2-3h4"/>',
+  bladder: '<path d="M9 3h6v8a3 3 0 0 1-6 0z"/><path d="M12 14v7"/>',
+  lunettes: '<path d="M4 13c0-4 4-6 8-6s8 2 8 6M10 13v2M14 13v2"/>',
+  masque: '<path d="M6 9c2-3 10-3 12 0v4a6 6 0 0 1-12 0z"/><path d="M12 19v3"/>',
+  catheter: '<path d="M4 20l7-7M9 11l4 4M11 9l6-6 4 4-6 6"/>',
+  tubes: '<path d="M8 3v14a2 2 0 0 0 4 0V3M16 3v14a2 2 0 0 0 4 0V3M7 3h6M15 3h6M8 9h4M16 9h4"/>',
+  hemoc: '<path d="M10 3h4v5l4 9a3 3 0 0 1-3 4H9a3 3 0 0 1-3-4l4-9z"/><path d="M8 14h8"/>',
+  ecbu: '<rect x="7" y="7" width="10" height="14" rx="2"/><path d="M8 4h8v3H8z"/>',
+  compresse: '<rect x="4" y="7" width="16" height="10" rx="2"/><path d="M8 7v10M16 7v10M4 12h16"/>',
+  main: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v5V4a1.5 1.5 0 0 1 3 0v7V5a1.5 1.5 0 0 1 3 0v8l1-2a1.5 1.5 0 0 1 2.6 1.4L17 18a6 6 0 0 1-5 3h-1a5 5 0 0 1-5-5v-3a1.5 1.5 0 0 1 3 0"/>',
+  seringue: '<path d="M18 2l4 4M20 4l-9 9M15 5l4 4M10 10l4 4M6 14l4 4-4 2-2-2z"/>',
+  stop: '<rect x="5" y="5" width="14" height="14" rx="3"/>',
+  sonde: '<path d="M12 3v9a4 4 0 0 0 8 0M12 12a4 4 0 0 1-8 0V9"/>',
+  lit: '<path d="M3 18v-8M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-6v5M6 12a2 2 0 1 0 0-.01"/>',
+  phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',
+  chariot: '<rect x="4" y="6" width="16" height="12" rx="2"/><path d="M12 9v6M9 12h6M7 18v2M17 18v2"/>',
+  dossier: '<path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/>',
+  attendre: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
 };
+const tIcon = (k) => `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${TI[k] || TI.main}</svg>`;
+const TOOLS = [
+  { id: 'sha', label: 'SHA', tap: 'sha', color: '#4fa8ff' }, { id: 'gants', label: 'Gants', tap: 'gants', color: '#7ab8ff' },
+  { id: 'bracelet', label: 'Identité', zones: { hand: 'identito', arm: 'identito' }, hint: 'sur le poignet', g: 'talk' },
+  { id: 'main', label: 'Palper', zones: { abdomen: 'examen', chest: 'examen', legs: 'examen', arm: 'examen', hand: 'examen', head: 'stimuler' }, hint: 'sur le corps' },
+  { id: 'tensio', label: 'Tensiomètre', zones: { arm: 'pa' }, g: 'pa', hint: 'sur le bras' },
+  { id: 'oxy', label: 'Oxymètre', zones: { hand: 'spo2' }, g: 'spo2', hint: 'sur un doigt' },
+  { id: 'scope', label: 'Électrodes', zones: { chest: 'scope' }, g: 'scope', hint: 'sur le thorax' },
+  { id: 'thermo', label: 'Thermomètre', zones: { head: 'temp' }, g: 'temp', hint: 'sur le front' },
+  { id: 'gluco', label: 'Glycémie', zones: { hand: 'glyc' }, g: 'glyc', hint: 'au bout du doigt' },
+  { id: 'cetone', label: 'Cétonémie', zones: { hand: 'cetone' }, g: 'cetone', hint: 'au bout du doigt' },
+  { id: 'steth', label: 'Stéthoscope', zones: { chest: 'ausculter', abdomen: 'ausculter' }, g: 'ausculter', hint: 'sur le thorax' },
+  { id: 'lampe', label: 'Lampe', zones: { head: 'pupilles' }, g: 'pupilles', hint: 'vers les yeux' },
+  { id: 'lunettes', label: 'Lunettes O₂', zones: { head: 'o2_lun' }, g: 'o2_lun', hint: 'sur le visage' },
+  { id: 'masque', label: 'Masque O₂', zones: { head: 'o2_mhc' }, g: 'o2_mhc', hint: 'sur le visage' },
+  { id: 'ecg', label: 'ECG', zones: { chest: 'ecg' }, g: 'scope', hint: 'sur le thorax' },
+  { id: 'catheter', label: 'Cathéter', zones: { arm: 'vvp', hand: 'vvp' }, g: 'vvp', hint: 'sur l’avant-bras' },
+  { id: 'tubes', label: 'Bilan', zones: { arm: 'bilan', hand: 'bilan' }, g: 'bilan', hint: 'au pli du coude' },
+  { id: 'hemoc', label: 'Hémocultures', zones: { arm: 'hemoc', hand: 'hemoc' }, g: 'hemoc', hint: 'au pli du coude' },
+  { id: 'bladder', label: 'Bladder scan', zones: { abdomen: 'bladder' }, g: 'bladder', hint: 'sur le bas-ventre' },
+  { id: 'ecbu', label: 'ECBU', zones: { abdomen: 'ecbu', legs: 'ecbu' }, hint: 'sur la sonde / le bas-ventre' },
+  { id: 'sonde', label: 'Sonde urinaire', zones: { abdomen: 'sondage', legs: 'sondage' }, hint: 'sur le bas-ventre' },
+  { id: 'compresse', label: 'Compression', zones: { legs: 'compression', abdomen: 'compression', arm: 'compression', chest: 'compression' }, hint: 'sur le saignement' },
+  { id: 'seringue', label: 'Traitements', tap: 'meds' }, { id: 'stop', label: 'Arrêter perf.', tap: 'stop_perf' },
+  { id: 'lit', label: 'Position', tap: 'positions' }, { id: 'attendre', label: 'Attendre 5 min', tap: 'attendre' },
+  { id: 'phone', label: 'Appeler', tap: 'appeler' }, { id: 'chariot', label: 'Urgence', tap: 'urgence' }, { id: 'dossier', label: 'Dossier', tap: 'dossier' },
+];
+const TAP_GROUPS = {
+  positions: ['pos_demi', 'pos_assis', 'pos_plat', 'pos_trend', 'pos_pls', 'repos', 'ajeun', 'relever'],
+  urgence: ['chariot', 'mce'],
+  dossier: ['allergies', 'heure', 'cupt', 'diurese', 'tracer'],
+  patient: ['interroger', 'rassurer', 'eva', 'conscience', 'observer', 'stimuler', 'heure'],
+};
+const PICK_TOOL = { monitor: 'scope', sha: 'sha', gants: 'gants', tensio: 'tensio', thermo: 'thermo', gluco: 'gluco', steth: 'steth', oxy: 'oxy', ecg: 'ecg', bladder: 'bladder', kit: 'catheter', o2: 'lunettes', phone: 'phone', chariot: 'chariot', dossier: 'dossier', iv: 'stop', pharma: 'seringue' };
+
 route(/^\/sim\/([\w-]+)\/(train|eval)(?:\/(\d+))?$/, async (id, mode, vi) => {
   const s = settings();
   const realtime = mode === 'eval' ? s.chronoSimEval : s.chronoSimTrain;
   app.innerHTML = `<div class="sim"><div class="sim-top"><button class="iconbtn" id="quit">${icon('close')}</button><div class="sim-title"><b id="ptitle"></b><small id="psub"></small></div><div class="grow"></div><span class="badge ${mode}">${mode === 'eval' ? 'Évaluation' : 'Entraînement'}</span><span class="clock ${realtime ? 'live' : ''}" id="clock">${icon('clock', 16)} 0:00</span>${mode === 'train' ? `<button class="iconbtn" id="hint" title="Indice">${icon('bulb')}</button>` : ''}<button class="btn small" id="end">Terminer</button></div>
-    <div class="sim-body"><div class="stage" id="stage"><div class="loading">Chargement de la chambre…</div><div class="last" id="last"></div><div class="views" id="views"><button data-v="room">Chambre</button><button data-v="patient">Patient</button><button data-v="scope">Scope</button><button data-v="chariot">Chariot</button></div><div class="hint3d">Touchez un objet ou le patient · glissez pour tourner · pincez pour zoomer</div></div>
-    <aside class="panel"><div class="tabs" id="tabs"><button data-tab="actions" class="on">Actions</button><button data-tab="vitals">Relevés</button><button data-tab="dossier">Dossier</button><button data-tab="journal">Journal</button></div><div class="panel-b" id="pb"></div></aside></div></div>`;
-  const [{ Sim }, { Room, PICK_LABELS }] = await Promise.all([import('./sim/engine.js'), import('./sim/scene.js')]);
+    <div class="sim-body"><div class="stage" id="stage"><div class="loading">Préparation de la chambre…</div>
+      <div class="views" id="views"><button data-v="top">Corps entier</button><button data-v="patient">Visage</button></div>
+      <div class="last" id="last"></div><div class="zonebubble" id="zb"></div>
+      <div class="tray" id="tray"></div></div>
+    <aside class="panel"><div class="tabs" id="tabs"><button data-tab="vitals" class="on">Relevés</button><button data-tab="dossier">Dossier</button><button data-tab="journal">Journal</button><button data-tab="actions">Liste</button></div><div class="panel-b" id="pb"></div></aside></div></div>`;
+  const [{ Sim }, { Room }] = await Promise.all([import('./sim/engine.js'), import('./sim/scene.js')]);
   const sim = new Sim(id, mode, vi != null ? +vi : null);
-  let room = null; let tab = 'actions'; let filterTxt = '';
+  let room = null; let tab = 'vitals'; let busy = false;
   $('#ptitle').textContent = `${sim.patient.name}, ${sim.patient.age} ans`;
   $('#psub').textContent = sim.sc.title + ' · ' + sim.variant.label;
   try {
-    room = new Room($('#stage'), (pick) => openPick(pick), isDark(), settings().anim !== false);
+    room = new Room($('#stage'), (pick, ev) => onPick(pick, ev), isDark(), settings().anim !== false);
     $('.loading', $('#stage'))?.remove(); room.update(sim.s); room.startMonitor();
     import('./sim/avatar.js').then(({ pickAvatar }) => room.loadPatient(pickAvatar(sim.patient.sex, sim.patient.age, sim.variant.index + sim.sc.id.length * 7))).catch((e) => console.warn('avatar', e));
-  } catch (e) { $('.loading', $('#stage')).textContent = '3D indisponible sur cet appareil — utilisez la liste d’actions.'; }
+  } catch (e) { $('.loading', $('#stage')).textContent = '3D indisponible sur cet appareil — utilisez l’onglet Liste.'; }
   onLeave(() => { room?.dispose(); clearInterval(clockT); });
   $('#views').addEventListener('click', (e) => { const b = e.target.closest('[data-v]'); if (b) room?.view(b.dataset.v); });
+  window.__sim = { sim, get room() { return room; } }; // utile aux tests automatisés
   const avail = () => sim.available();
+  const availIds = () => new Set(avail().map((a) => a.id));
   const actBtn = (a) => `<button class="act ${a.med && !a.prescribed ? 'np' : ''}" data-a="${a.id}"><span>${esc(a.label)}</span><small>${a.dur < 1 ? Math.round(a.dur * 60) + ' s' : a.dur + ' min'}${a.med && !a.prescribed ? ' · non prescrit' : ''}</small></button>`;
+  // ----- Plateau
+  const toolActions = (t) => (t.zones ? Object.values(t.zones) : t.tap === 'meds' ? avail().filter((a) => a.med || a.scoped).map((a) => a.id) : TAP_GROUPS[t.tap] || [t.tap]);
+  const renderTray = () => {
+    const ids = availIds();
+    $('#tray').innerHTML = TOOLS.filter((t) => toolActions(t).some((a) => ids.has(a))).map((t) => `<button class="tool" data-t="${t.id}">${tIcon(t.id)}<span>${t.label}</span></button>`).join('');
+  };
+  renderTray();
   const renderPanel = () => {
     const pb = $('#pb');
     if (tab === 'actions') {
-      const groups = {}; for (const a of avail()) { if (filterTxt && !norm(a.label).includes(norm(filterTxt))) continue; (groups[a.group] = groups[a.group] || []).push(a); }
-      pb.innerHTML = `<div class="search small"><span>${icon('dico', 16)}</span><input type="search" id="af" placeholder="Chercher une action" value="${esc(filterTxt)}"></div>` + Object.entries(groups).map(([g, list]) => `<h4>${g}</h4><div class="acts">${list.map(actBtn).join('')}</div>`).join('');
-      $('#af').addEventListener('input', (e) => { filterTxt = e.target.value; const pos = e.target.selectionStart; renderPanel(); const f = $('#af'); f.focus(); f.setSelectionRange(pos, pos); });
+      const groups = {}; for (const a of avail()) (groups[a.group] = groups[a.group] || []).push(a);
+      pb.innerHTML = `<p class="muted small">Toutes les actions (accessibilité). Le plus réaliste : glisser les instruments sur le patient.</p>` + Object.entries(groups).map(([g, list]) => `<h4>${g}</h4><div class="acts">${list.map(actBtn).join('')}</div>`).join('');
     } else if (tab === 'vitals') {
       const v = sim.s; const r = Math.round;
-      pb.innerHTML = (v.scope ? `<div class="vitals"><div><small>FC</small><b>${sim.acr ? '—' : r(v.fc)}</b></div><div><small>SpO₂</small><b>${sim.acr ? '—' : r(v.spo2)}%</b></div><div><small>FR</small><b>${r(v.fr)}</b></div><div><small>PA</small><b>${sim.acr ? '—' : r(v.pas) + '/' + r(v.pad)}</b></div></div>` : '<p class="muted small">Scope non branché : les valeurs n’apparaissent qu’après mesure.</p>') +
+      pb.innerHTML = (v.scope ? `<div class="vitals"><div><small>FC</small><b>${sim.acr ? '—' : r(v.fc)}</b></div><div><small>SpO₂</small><b>${sim.acr ? '—' : r(v.spo2)}%</b></div><div><small>FR</small><b>${r(v.fr)}</b></div><div><small>PA</small><b>${sim.acr ? '—' : r(v.pas) + '/' + r(v.pad)}</b></div></div>` : '<p class="muted small">Scope non branché : posez les électrodes sur le thorax pour une surveillance continue.</p>') +
         `<h4>Mesures réalisées</h4>${sim.measures.length ? sim.measures.slice().reverse().map((m) => `<div class="meas"><span>${fmtMin(m.t)}</span>${esc(m.text)}</div>`).join('') : '<p class="muted small">Aucune mesure.</p>'}`;
     } else if (tab === 'dossier') {
       const p = sim.patient;
       pb.innerHTML = `<div class="dos"><p><b>${esc(p.name)}</b>, ${p.age} ans</p><p><small>Motif</small>${esc(p.motif)}</p><p><small>Antécédents</small>${esc(p.atcd)}</p><p><small>Traitements</small>${esc(p.ttt)}</p><p><small>Situation</small>${esc(sim.sc.intro)}</p>
-        <h4>Prescriptions disponibles</h4>${[...sim.prescribed].length ? [...sim.prescribed].map((k) => `<div class="meas">${esc(ACTIONS[k]?.label || k)}</div>`).join('') : '<p class="muted small">Aucune prescription pour l’instant. Appelez le médecin si nécessaire.</p>'}</div>`;
-    } else {
-      pb.innerHTML = sim.feed.slice().reverse().map((f) => `<div class="feed ${f.kind}"><span>${fmtMin(f.t)}</span>${md(f.text)}</div>`).join('');
-    }
+        <h4>Prescriptions</h4>${[...sim.prescribed].length ? [...sim.prescribed].map((k) => `<div class="meas">${esc(ACTIONS[k]?.label || k)}</div>`).join('') : '<p class="muted small">Aucune prescription pour l’instant. Appelez le médecin si nécessaire.</p>'}</div>`;
+    } else pb.innerHTML = sim.feed.slice().reverse().map((f) => `<div class="feed ${f.kind}"><span>${fmtMin(f.t)}</span>${md(f.text)}</div>`).join('');
   };
+  const showLast = (items) => { $('#last').innerHTML = items.map((o) => `<div class="feed ${o.type || o.kind}">${md(o.text)}</div>`).join(''); $('#last').classList.add('show'); clearTimeout(showLast.t); showLast.t = setTimeout(() => $('#last')?.classList.remove('show'), 7000); };
   const doAction = (aid) => {
     if (sim.finished) return;
     const out = sim.do(aid) || [];
-    const last = out.filter((o) => mode === 'train' || o.type === 'res');
-    $('#last').innerHTML = last.map((o) => `<div class="feed ${o.type}">${md(o.text)}</div>`).join('');
-    $('#last').classList.add('show'); clearTimeout(doAction.t); doAction.t = setTimeout(() => $('#last')?.classList.remove('show'), 7000);
-    room?.update(sim.s); updateClock(); renderPanel();
+    showLast(out.filter((o) => mode === 'train' || o.type === 'res'));
+    room?.update(sim.s); updateClock(); renderPanel(); renderTray();
     if (sim.finished) showResult();
   };
-  const openPick = (pick) => {
-    if (pick === 'dossier') { tab = 'dossier'; syncTabs(); }
-    const av = avail(); let ids = PICK_ACTIONS[pick] || [];
-    if (pick === 'pharma' || pick === 'iv') ids = ids.concat(av.filter((a) => a.med).map((a) => a.id));
-    const list = av.filter((a) => ids.includes(a.id));
-    if (!list.length) return toast(PICK_LABELS[pick] + ' : rien à faire ici');
-    sheet(PICK_LABELS[pick] || 'Actions', `<div class="acts">${list.map(actBtn).join('')}</div>`, (el) => el.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (b) { el.remove(); doAction(b.dataset.a); } }));
+  const sheetActs = (title, ids) => {
+    const av = avail(); const list = av.filter((a) => ids.includes(a.id));
+    if (!list.length) return toast('Rien à faire ici');
+    sheet(title, `<div class="acts">${list.map(actBtn).join('')}</div>`, (el) => el.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (b) { el.remove(); doAction(b.dataset.a); } }));
+  };
+  const tapTool = async (t) => {
+    if (t.tap === 'meds') return sheetActs('Traitements et gestes', avail().filter((a) => a.med || a.scoped).map((a) => a.id));
+    if (TAP_GROUPS[t.tap]) { if (t.tap === 'dossier') { tab = 'dossier'; syncTabs(); } return sheetActs(t.label, TAP_GROUPS[t.tap]); }
+    if (t.tap) { if (t.tap === 'sha' || t.tap === 'gants') room?.sound('tick'); return doAction(t.tap); }
+    toast(`Glissez ${t.label.toLowerCase()} ${t.hint || 'sur le patient'}`);
+  };
+  // pose d'un instrument sur le corps
+  const useTool = async (t, zone, x, y) => {
+    if (busy) return; const ids = availIds();
+    if (!zone) return toast(`Posez ${t.label.toLowerCase()} ${t.hint || 'sur le patient'}`);
+    const aid = t.zones?.[zone.zone];
+    if (!aid) return toast(`${t.label} : pas sur ${zone.label.toLowerCase()} — ${t.hint || ''}`);
+    if (!ids.has(aid)) return toast('Ce geste n’est pas disponible ici');
+    busy = true;
+    try { if (room) { if (t.g && t.g !== 'talk') await room.flyTool(t.g, x, y, zone.point); await room.gesture(t.g || 'none', zone); } } catch (e) { console.warn(e); }
+    busy = false; doAction(aid);
+  };
+  // glisser-déposer depuis le plateau (glissement horizontal = défilement, vers le haut = prendre l'outil)
+  let drag = null; const zb = $('#zb'); const tray = $('#tray');
+  tray.addEventListener('pointerdown', (e) => { const b = e.target.closest('.tool'); if (!b) return; drag = { t: TOOLS.find((x) => x.id === b.dataset.t), x0: e.clientX, y0: e.clientY, el: b, on: false, id: e.pointerId }; });
+  window.addEventListener('pointermove', onMove, { passive: false }); window.addEventListener('pointerup', onUp);
+  onLeave(() => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); });
+  function onMove(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+    if (!drag.on && dy < -12 && Math.abs(dy) > Math.abs(dx) && drag.t.zones) {
+      drag.on = true; drag.ghost = document.createElement('div'); drag.ghost.className = 'ghost'; drag.ghost.innerHTML = tIcon(drag.t.id); document.body.appendChild(drag.ghost); room && (room.controls.enabled = false);
+    }
+    if (drag.on) {
+      e.preventDefault(); drag.ghost.style.transform = `translate(${e.clientX - 30}px, ${e.clientY - 70}px)`;
+      const z = room?.zoneAt(e.clientX, e.clientY - 40); const ok = z && drag.t.zones[z.zone];
+      zb.textContent = z ? z.label : ''; zb.className = 'zonebubble' + (z ? ' show' : '') + (ok ? ' ok' : z ? ' ko' : '');
+      const r = $('#stage').getBoundingClientRect(); zb.style.left = e.clientX - r.left + 'px'; zb.style.top = e.clientY - r.top - 96 + 'px';
+    }
+  }
+  function onUp(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    const d = drag; drag = null; zb.className = 'zonebubble'; if (room) room.controls.enabled = true;
+    if (d.on) { d.ghost.remove(); useTool(d.t, room?.zoneAt(e.clientX, e.clientY - 40), e.clientX, e.clientY - 40); }
+    else if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 8) tapTool(d.t);
+  }
+  // toucher le patient ou un objet de la chambre
+  const onPick = (pick, ev) => {
+    if (pick === 'patient') {
+      const z = room?.zoneAt(ev.clientX, ev.clientY);
+      if (!z || z.zone === 'head') { room?.gesture('talk'); return sheetActs('Parler au patient / évaluer', TAP_GROUPS.patient); }
+      return sheetActs(z.label, ['examen', 'observer', 'stimuler', 'eva']);
+    }
+    const t = TOOLS.find((x) => x.id === PICK_TOOL[pick]); if (t) tapTool(t);
   };
   const syncTabs = () => { $('#tabs').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab)); renderPanel(); };
   $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) { tab = b.dataset.tab; syncTabs(); } });
@@ -444,10 +560,10 @@ route(/^\/sim\/([\w-]+)\/(train|eval)(?:\/(\d+))?$/, async (id, mode, vi) => {
     if (document.hidden || sim.finished) return;
     sim.advance(1 / 60); updateClock();
     if (++lastUpd % 3 === 0) { room?.update(sim.s); if (tab !== 'actions') renderPanel(); }
-    if (sim.feed.length !== feedN) { feedN = sim.feed.length; const f = sim.feed[sim.feed.length - 1]; if (f && (f.kind === 'event' || f.kind === 'warn')) { $('#last').innerHTML = `<div class="feed ${f.kind}">${md(f.text)}</div>`; $('#last').classList.add('show'); } }
+    if (sim.feed.length !== feedN) { feedN = sim.feed.length; const f = sim.feed[sim.feed.length - 1]; if (f && (f.kind === 'event' || f.kind === 'warn')) showLast([f]); }
   }, 1000) : null;
   renderPanel();
-  $('#last').innerHTML = `<div class="feed intro">${md(sim.sc.intro)}</div>`; $('#last').classList.add('show');
+  showLast([{ kind: 'intro', text: sim.sc.intro + '\n\nGlissez un instrument du plateau vers le haut, puis posez-le sur le patient. Touchez le visage pour lui parler.' }]);
   async function showResult() {
     clearInterval(clockT);
     const r = sim.result;
@@ -458,7 +574,7 @@ route(/^\/sim\/([\w-]+)\/(train|eval)(?:\/(\d+))?$/, async (id, mode, vi) => {
       ${r.items.map((c) => `<div class="crit ${c.done ? (c.score < c.pts ? 'mid' : 'ok') : 'ko'}"><span>${c.done ? icon('check', 16) : icon('close', 16)}</span><div><b>${esc(c.label)}</b>${c.crit ? ' <em>critique</em>' : ''}<small>${esc(c.note)} · ${(Math.round(c.score * 10) / 10).toString().replace('.', ',')}/${c.pts}</small></div></div>`).join('')}
       ${r.penalties.length ? `<h4>Erreurs et pénalités</h4>${r.penalties.map((p) => `<div class="crit ko"><span>−${p.pts}</span><div>${esc(p.reason)}<small>à ${fmtMin(p.t)}</small></div></div>`).join('')}` : ''}
       <h4>À retenir</h4><div class="md">${md(r.debrief)}</div>
-      <div class="row-btns"><button class="btn primary" id="replay">Rejouer cette situation</button><button class="btn" id="other">Autre variante</button><a class="btn" href="#/patients">Retour</a></div>`, (el) => {
+      <div class="row-btns"><button class="btn primary" id="replay">Rejouer cette situation</button><button class="btn" id="other">Autre patient</button><a class="btn" href="#/patients">Retour</a></div>`, (el) => {
       $('#replay', el).onclick = () => { el.remove(); router(); };
       $('#other', el).onclick = () => { el.remove(); go(`/sim/${sim.sc.id}/${mode}/${randVariant(LS.get('ssex', 'all'))}`); };
     });
@@ -471,10 +587,10 @@ route(/^\/sim\/([\w-]+)\/(train|eval)(?:\/(\d+))?$/, async (id, mode, vi) => {
 const chev = '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>';
 const ficheRow = (f) => `<a class="item" href="#/fiche/${encodeURIComponent(f.id)}"><div><b>${esc(f.title)}</b><small>${f.src} · ${esc(themeName(f.theme))}</small></div>${chev}</a>`;
 route(/^\/fiches$/, async () => {
-  const docs = (await db.all('docs')).filter((d) => d.summary || d.aiSummary);
+  const docs = (await db.all('docs')).filter((d) => d.summary || d.aiSummary || (d.type === 'note' && d.text));
   let topic = null; let q = '';
   const render = () => {
-    let list = allFiches().concat(docs.map((d) => ({ id: 'doc:' + d.id, title: d.title, theme: 'doc', src: 'Mon cours', body: d.aiSummary || d.summary })));
+    let list = allFiches().concat(docs.map((d) => ({ id: 'doc:' + d.id, title: d.title, theme: d.theme || 'doc', src: 'Mon cours', body: d.type === 'note' ? d.text : d.aiSummary || d.summary })));
     if (topic) list = list.filter((f) => matchTopic(topic, f));
     if (q) list = list.filter((f) => norm(f.title + ' ' + f.body).includes(norm(q)));
     app.innerHTML = page('Fiches', `<div class="search"><span>${icon('dico', 18)}</span><input type="search" id="fq" placeholder="Rechercher dans les fiches" value="${esc(q)}"></div>
@@ -487,7 +603,7 @@ route(/^\/fiches$/, async () => {
 });
 route(/^\/fiche\/(.+)$/, async (id) => {
   let f = allFiches().find((x) => x.id === id);
-  if (!f && id.startsWith('doc:')) { const d = await db.get('docs', id.slice(4)); if (d) f = { title: d.title, theme: 'doc', src: 'Mon cours', body: d.aiSummary || d.summary }; }
+  if (!f && id.startsWith('doc:')) { const d = await db.get('docs', id.slice(4)); if (d) f = { title: d.title, theme: d.theme || 'doc', src: 'Mon cours', body: d.type === 'note' ? d.text : d.aiSummary || d.summary }; }
   if (!f) return go('/fiches');
   app.innerHTML = page(f.title, `<p class="muted small">${f.src} · ${esc(themeName(f.theme))}</p><article class="md">${md(f.body)}</article>
     <div class="row-btns"><button class="btn" id="tocards">${icon('cards', 16)} Créer des cartes</button></div>`, { back: '/fiches' });
@@ -502,34 +618,53 @@ route(/^\/fiche\/(.+)$/, async (id) => {
 // COURS (imports)
 // =====================================================================
 route(/^\/cours$/, async () => {
-  const docs = (await db.all('docs')).sort((a, b) => b.date - a.date);
-  app.innerHTML = page('Mes cours', `
-    <label class="drop"><input type="file" id="file" multiple accept=".pdf,.docx,.txt,.md,image/*,application/pdf">${icon('upload', 28)}<b>Importer des cours</b><small>PDF, Word (.docx), texte, photos de cours</small></label>
-    <div class="card"><textarea id="paste" rows="4" placeholder="…ou collez ici le texte d’un cours"></textarea><div class="row-btns"><input id="ptitle" placeholder="Titre"><button class="btn" id="addp">Ajouter</button></div></div>
-    <div id="prog"></div>
-    <h2>${docs.length} cours</h2>
-    <div class="list">${docs.map((d) => `<a class="item" href="#/cours/${d.id}"><div><b>${esc(d.title)}</b><small>${d.type.toUpperCase()} · ${d.text ? Math.round(d.text.length / 1000) + ' k caractères' : 'image'} · ${fmtDate(d.date)}</small></div></a>`).join('') || '<p class="muted">Aucun cours importé. Tout reste stocké sur votre iPad.</p>'}</div>`);
-  const save = async (d) => {
-    const doc = { id: uid(), date: Date.now(), ...d, text: cleanText(d.text) };
-    if (doc.text.length > 200) { doc.summary = summarize(doc.text); doc.quiz = makeQuiz(doc.text, doc.id); const cards = makeCards(doc.text, 50); for (const c of cards) await db.put('cards', { id: 'd-' + uid(), deck: doc.title, doc: doc.id, ...c }); }
-    await db.put('docs', doc); return doc;
+  const docs = (await db.all('docs')).sort((a, b) => (b.updated || b.date) - (a.updated || a.date));
+  let q = LS.get('cq', ''); let th = '';
+  const render = () => {
+    const list = docs.filter((d) => (!th || d.theme === th) && (!q || norm(d.title + ' ' + (d.text || '')).includes(norm(q))));
+    const themes = [...new Set(docs.map((d) => d.theme).filter(Boolean))];
+    app.innerHTML = page('Mes cours', `
+      <div class="grid tiles two">
+        <button class="tile" id="newc"><span class="ico c-amber">${icon('fiche', 22)}</span><b>Écrire un cours</b><small>Titres, gras, listes · enregistrement automatique</small></button>
+        <label class="tile"><input type="file" id="file" multiple accept=".pdf,.docx,.txt,.md,image/*,application/pdf" hidden><span class="ico c-blue">${icon('upload', 22)}</span><b>Importer</b><small>PDF, Word, texte, photos de cours</small></label>
+      </div>
+      <div id="prog"></div>
+      <div class="search"><span>${icon('dico', 18)}</span><input type="search" id="cq" placeholder="Rechercher dans mes cours (titre et contenu)" value="${esc(q)}"></div>
+      ${themes.length ? `<div class="chips"><button class="chip ${!th ? 'on' : ''}" data-th="">Toutes les matières</button>${themes.map((t) => `<button class="chip ${th === t ? 'on' : ''}" data-th="${t}">${esc(themeName(t))}</button>`).join('')}</div>` : ''}
+      <h2>${list.length} cours</h2>
+      <div class="list">${list.map((d) => `<a class="item" href="#/cours/${d.id}${d.type === 'note' ? '/lire' : ''}"><span class="ico sm ${d.type === 'note' ? 'c-amber' : d.type === 'pdf' ? 'c-rose' : d.type === 'image' ? 'c-violet' : 'c-blue'}">${icon(d.type === 'note' ? 'fiche' : d.type === 'image' ? 'cards' : 'cours', 16)}</span><div class="grow"><b>${esc(d.title)}</b><small>${d.theme ? esc(themeName(d.theme)) + ' · ' : ''}${d.type === 'note' ? 'Écrit' : d.type.toUpperCase()} · ${d.text ? Math.max(1, Math.round(d.text.split(/\s+/).length)) + ' mots' : 'image'} · ${fmtDate(d.updated || d.date)}</small></div>${chev}</a>`).join('') || '<p class="muted">Aucun cours pour l’instant. Tout reste stocké sur votre iPad, même hors ligne.</p>'}</div>`);
+    $('#cq').addEventListener('change', (e) => { q = e.target.value; LS.set('cq', q); render(); });
+    app.querySelectorAll('[data-th]').forEach((b) => b.addEventListener('click', () => { th = b.dataset.th; render(); }));
+    $('#newc').onclick = async () => { const d = { id: uid(), type: 'note', title: 'Nouveau cours', text: '', theme: '', date: Date.now(), updated: Date.now() }; await db.put('docs', d); go(`/cours/${d.id}/ecrire`); };
+    $('#file').addEventListener('change', async (e) => {
+      const { importFile } = await import('./importer.js');
+      const prog = $('#prog');
+      for (const f of e.target.files) {
+        prog.innerHTML = `<div class="card">Import de ${esc(f.name)}… <span id="pc"></span></div>`;
+        try { await saveDoc(await importFile(f, (p) => { const pc = $('#pc'); if (pc) pc.textContent = Math.round(p * 100) + ' %'; })); }
+        catch (err) { toast(err.message); }
+      }
+      router();
+    });
   };
-  $('#file').addEventListener('change', async (e) => {
-    const { importFile } = await import('./importer.js');
-    const prog = $('#prog');
-    for (const f of e.target.files) {
-      prog.innerHTML = `<div class="card">Import de ${esc(f.name)}… <span id="pc"></span></div>`;
-      try { await save(await importFile(f, (p) => { const pc = $('#pc'); if (pc) pc.textContent = Math.round(p * 100) + ' %'; })); }
-      catch (err) { toast(err.message); }
-    }
-    router();
-  });
-  $('#addp').onclick = async () => { const t = $('#paste').value.trim(); if (t.length < 50) return toast('Texte trop court'); await save({ title: $('#ptitle').value || 'Cours collé', type: 'text', text: t }); router(); };
+  render();
 });
-route(/^\/cours\/([\w]+)(?:\/(\w+))?$/, async (id, tab = 'resume') => {
+// Enregistre un cours importé et prépare résumé, cartes et QCM (hors ligne)
+async function saveDoc(d) {
+  const doc = { id: uid(), date: Date.now(), updated: Date.now(), ...d, text: cleanText(d.text) };
+  await regenDoc(doc); await db.put('docs', doc); return doc;
+}
+async function regenDoc(doc) {
+  const plain = (doc.text || '').replace(/[#*>`|]/g, ' ');
+  if (plain.length > 200) { doc.summary = summarize(plain); doc.quiz = makeQuiz(plain, doc.id); } else { doc.summary = ''; doc.quiz = []; }
+  for (const c of await db.all('cards')) if (c.doc === doc.id) await db.del('cards', c.id);
+  if (plain.length > 200) for (const c of makeCards(plain, 50)) await db.put('cards', { id: 'd-' + uid(), deck: doc.title, doc: doc.id, ...c });
+}
+route(/^\/cours\/([\w]+)(?:\/(\w+))?$/, async (id, tab) => {
   const d = await db.get('docs', id); if (!d) return go('/cours');
+  tab = tab || (d.type === 'note' ? 'lire' : 'resume');
   const { hasAI } = await import('./ai.js');
-  const tabs = [['resume', 'Résumé'], ['texte', 'Texte'], ['original', 'Original'], ['cartes', 'Cartes'], ['ia', 'IA']].filter(([k]) => k !== 'original' || d.blob);
+  const tabs = [['lire', 'Lire'], ['ecrire', 'Écrire'], ['resume', 'Résumé'], ['original', 'Original'], ['cartes', 'Cartes'], ['ia', 'IA']].filter(([k]) => (k !== 'original' || d.blob) && (k !== 'lire' || d.type === 'note'));
   app.innerHTML = page(d.title, `<div class="tabs line">${tabs.map(([k, l]) => `<a href="#/cours/${id}/${k}" class="${k === tab ? 'on' : ''}">${l}</a>`).join('')}</div><div id="dv"></div>
     <div class="row-btns"><button class="btn" id="qz">${icon('quiz', 16)} QCM sur ce cours</button><button class="btn danger" id="del">${icon('trash', 16)} Supprimer</button></div>`, { back: '/cours' });
   const dv = $('#dv');
@@ -538,9 +673,28 @@ route(/^\/cours\/([\w]+)(?:\/(\w+))?$/, async (id, tab = 'resume') => {
   if (tab === 'resume') {
     dv.innerHTML = d.aiSummary ? `<p class="muted small">Fiche générée par IA</p><article class="md">${md(d.aiSummary)}</article><details><summary>Résumé automatique local</summary><article class="md">${md(d.summary || '')}</article></details>`
       : d.summary ? `<p class="muted small">Résumé automatique (hors ligne). Pour une fiche rédigée, utilisez l’onglet IA.</p><article class="md">${md(d.summary)}</article>` : `<p class="muted">Pas de texte exploitable${d.type === 'image' ? ' : c’est une photo. Utilisez l’onglet IA pour la transcrire.' : '.'}</p>`;
-  } else if (tab === 'texte') {
-    dv.innerHTML = `<textarea id="tx" rows="18">${esc(d.text || '')}</textarea><button class="btn" id="sv">Enregistrer et régénérer</button>`;
-    $('#sv').onclick = async () => { d.text = cleanText($('#tx').value); d.summary = summarize(d.text); d.quiz = makeQuiz(d.text, d.id); await db.put('docs', d); toast('Enregistré'); };
+  } else if (tab === 'lire') {
+    dv.innerHTML = d.text ? `<article class="md">${md(d.text)}</article>` : '<p class="muted">Ce cours est vide. Passez à l’onglet Écrire.</p>';
+  } else if (tab === 'ecrire') {
+    dv.innerHTML = `<input id="ttl" class="ttl" value="${esc(d.title)}" placeholder="Titre du cours">
+      <div class="row-btns"><select id="th" class="sel"><option value="">Matière…</option>${THEMES.map((t) => `<option value="${t.id}" ${d.theme === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select><span class="muted small grow" id="svst">Enregistré</span></div>
+      <div class="toolbar"><button data-f="h">Titre</button><button data-f="b"><b>G</b></button><button data-f="ul">• Liste</button><button data-f="ol">1. Liste</button><button data-f="q">Encadré</button><button data-f="t">Tableau</button></div>
+      <textarea id="tx" class="editor" rows="20" placeholder="Écrivez votre cours ici…&#10;&#10;## Définition&#10;…&#10;&#10;## Signes cliniques&#10;- …">${esc(d.text || '')}</textarea>
+      <p class="muted small">Mise en forme : ## titre · **gras** · - liste · 1. liste · > encadré. Le résumé, les cartes et le QCM se mettent à jour automatiquement.</p>`;
+    const tx = $('#tx'); let timer = null; let dirty = false;
+    const save = async () => { d.title = $('#ttl').value.trim() || 'Sans titre'; d.theme = $('#th').value; d.text = tx.value; d.updated = Date.now(); await db.put('docs', d); $('#svst').textContent = 'Enregistré ✓'; };
+    const later = () => { dirty = true; $('#svst').textContent = 'Enregistrement…'; clearTimeout(timer); timer = setTimeout(save, 700); };
+    tx.addEventListener('input', later); $('#ttl').addEventListener('input', later); $('#th').addEventListener('change', later);
+    onLeave(async () => { clearTimeout(timer); if (dirty) { await save(); await regenDoc(d); await db.put('docs', d); } });
+    const wrap = (pre, post = '', line = false) => {
+      const a0 = tx.selectionStart, b0 = tx.selectionEnd; const v = tx.value; let sel = v.slice(a0, b0);
+      if (line) { const ls = v.lastIndexOf('\n', a0 - 1) + 1; tx.value = v.slice(0, ls) + pre + v.slice(ls); tx.setSelectionRange(a0 + pre.length, b0 + pre.length); }
+      else { tx.value = v.slice(0, a0) + pre + (sel || 'texte') + post + v.slice(b0); tx.setSelectionRange(a0 + pre.length, a0 + pre.length + (sel || 'texte').length); }
+      tx.focus(); later();
+    };
+    $('.toolbar').addEventListener('click', (e) => { const b = e.target.closest('[data-f]'); if (!b) return; const f = b.dataset.f;
+      if (f === 'h') wrap('## ', '', true); if (f === 'b') wrap('**', '**'); if (f === 'ul') wrap('- ', '', true); if (f === 'ol') wrap('1. ', '', true); if (f === 'q') wrap('> ', '', true);
+      if (f === 't') { const v = tx.value, a0 = tx.selectionStart; tx.value = v.slice(0, a0) + '\n| Colonne 1 | Colonne 2 |\n|---|---|\n| … | … |\n' + v.slice(a0); later(); } });
   } else if (tab === 'original') {
     if (d.type === 'image') { const u = URL.createObjectURL(d.blob); onLeave(() => URL.revokeObjectURL(u)); dv.innerHTML = `<img class="orig" src="${u}" alt="">`; }
     else {

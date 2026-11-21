@@ -34,15 +34,13 @@ export class Room {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(46, 1, 0.05, 50);
     this.camera.position.set(2.5, 1.75, 3.0);
-    this.controls = new OrbitControls(this.camera, r.domElement);
-    this.controls.target.set(-0.35, 0.85, -0.25);
-    Object.assign(this.controls, { enableDamping: false, minDistance: 0.6, maxDistance: 4.6, maxPolarAngle: Math.PI * 0.49, minPolarAngle: 0.2, enablePan: true });
-    this.controls.addEventListener('change', () => this.render());
+    this.makeControls();
     this.build();
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(container);
     this.bindPick();
     this.resize();
+    this.view('top');
   }
   m(color, opts = {}) { return new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0, ...opts }); }
   mesh(geo, mat, x = 0, y = 0, z = 0, parent = this.scene, pick) {
@@ -114,7 +112,7 @@ export class Room {
     for (const z of [-0.06, 0.06]) this.box(0.02, 0.3, 0.02, metal, -0.285, 1.1, z, ward);
     const tvArm = this.box(0.35, 0.04, 0.04, metal, -1.55, 2.05, 0.95); const tv = RB(0.04, 0.4, 0.68, 0.01, M(0x15171a, 0.25), -1.36, 2.05, 0.95); tv.rotation.z = 0.15;
     // table adaptable au-dessus du lit
-    const ot = new THREE.Group(); ot.position.set(0.55, 0, 0.62); S.add(ot);
+    const ot = new THREE.Group(); ot.position.set(0.75, 0, 1.25); ot.rotation.y = Math.PI / 2; S.add(ot);
     RB(0.5, 0.04, 0.6, 0.01, metal, 0, 0.04, -0.15, ot); this.cyl(0.025, 0.025, 0.9, metal, 0, 0.5, 0, ot);
     RB(0.42, 0.03, 0.75, 0.012, M(0xffffff, 0.5, { map: woodTex }), 0, 0.95, -0.5, ot); this.cyl(0.035, 0.03, 0.11, M(0xffffff, 0.2, { transparent: true, opacity: 0.6 }), 0.08, 1.02, -0.4, ot);
     // panneau bois derrière le lit
@@ -280,7 +278,7 @@ export class Room {
   // Drap qui épouse la forme des jambes (géométrie déformée puis lissée)
   buildBlanket(opt = {}) {
     const footX = opt.footX ?? 0.88; const legZ = opt.legZ ?? 0.1; const lift = opt.lift ?? 0;
-    const L = 1.3, W = 1.06, nx = 60, nz = 40, cx = 0.39;
+    const x0 = opt.x0 ?? -0.26; const L = 1.04 - x0, W = 1.06, nx = Math.max(16, Math.round(L * 46)), nz = 40, cx = (x0 + 1.04) / 2;
     const geo = new THREE.PlaneGeometry(L, W, nx, nz); geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position; const hg = new Float32Array(pos.count);
     const leg = (wx, z, zc) => {
@@ -333,7 +331,7 @@ export class Room {
       const ray = new THREE.Raycaster(); ray.setFromCamera(v, this.camera);
       const visible = (o) => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
       const hit = ray.intersectObjects(this.pickables.filter(visible), false)[0];
-      if (hit) { this.flash(hit.object.userData.pick); this.onPick(hit.object.userData.pick); }
+      if (hit) { if (hit.object.userData.pick !== 'patient') this.flash(hit.object.userData.pick); this.onPick(hit.object.userData.pick, e); }
     });
   }
   flash(pick) {
@@ -362,7 +360,8 @@ export class Room {
     const lz = B['L Thigh'] && B['R Thigh'] ? Math.abs(B['L Thigh'].getWorldPosition(new THREE.Vector3()).z - B['R Thigh'].getWorldPosition(new THREE.Vector3()).z) / 2 + 0.02 : 0.1;
     const old = this.blanket; this.scene.remove(old); if (old.userData.fold) this.scene.remove(old.userData.fold);
     this.pickables = this.pickables.filter((o) => o !== old);
-    this.blanket = this.buildBlanket({ footX: fp ? fp.x : 0.88, legZ: lz, lift: 0.03 }); this.tag(this.blanket, 'patient');
+    this.footX = fp ? fp.x : 0.88; this.blanket = this.buildBlanket({ footX: this.footX, legZ: lz, lift: 0.03, x0: this.footX - 0.3 }); this.tag(this.blanket, 'patient');
+    this.updateAttachments(); this.view('top');
     this.render();
   }
   update(s) {
@@ -370,7 +369,7 @@ export class Room {
     const ang = { plat: 0.08, demi: 0.62, assis: 1.0 }[s.position] ?? 0.08;
     this.head.rotation.z = -ang;
     if (this.avatar) {
-      if (this._posed !== ang) { this.avatar.pose(ang, { hipX: -0.2, top: 0.6 }); this.keepHeadOffBoard(); this._posed = ang; this.fitPillow(); }
+      if (this._posed !== ang) { this.avatar.pose(ang, { hipX: -0.2, top: 0.6 }); this.keepHeadOffBoard(); this._posed = ang; this.fitPillow(); this.updateAttachments(); }
       this.avatar.express(s);
     }
     this.renderer.shadowMap.needsUpdate = true;
@@ -385,7 +384,7 @@ export class Room {
     this.sweat.visible = !!s.sweat;
     this.lunettes.visible = s.o2 === 'lunettes'; this.masque.visible = s.o2 === 'masque';
     this.ivBag.visible = this.ivLine.visible = !!s.iv;
-    this.scopeWire.visible = this.oxyClip.visible = !!s.scope;
+    this.scopeWire.visible = !!s.scope; this.oxyClip.visible = !!s.scope && !this.avatar;
     this.urineBag.visible = !!s.sonde; this.urineBag.material.color.setHex(URINE[s.urine] || URINE.clair);
     this.bloodStain.visible = !!s.blood;
     this.drawMonitor(this.phase || 0); this.render();
@@ -459,8 +458,146 @@ export class Room {
     }, 1000 / fps);
   }
   stopMonitor() { clearInterval(this.timer); }
+  // Caméra strictement au-dessus du lit : tête en haut (portrait) ou à gauche (paysage). Pas de rotation, zoom et déplacement seulement.
+  makeControls() {
+    this.portrait = true; // le patient est toujours affiché verticalement : tête en haut, pieds en bas
+    this.controls?.dispose();
+    this.camera.up.set(-1, 0, 0);
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    Object.assign(this.controls, { enableDamping: false, enableRotate: false, minDistance: 0.45, maxDistance: 4.5, minPolarAngle: 0, maxPolarAngle: Math.PI, screenSpacePanning: true });
+    this.controls.addEventListener('change', () => this.render());
+  }
+  // ---------- Animations (boucle active uniquement pendant un geste) ----------
+  tween(ms, step, done) {
+    const t0 = performance.now(); (this.anims ||= []).push({ t0, ms, step, done });
+    if (!this.raf) { const loop = (now) => { this.avatar?.react(now / 1000); this.anims = this.anims.filter((a) => { const k = Math.min(1, (now - a.t0) / a.ms); a.step(k); if (k >= 1) { a.done?.(); return false; } return true; }); this.render(); this.raf = this.anims.length ? requestAnimationFrame(loop) : null; }; this.raf = requestAnimationFrame(loop); }
+  }
+  wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
+  toolMesh(kind) {
+    const M = (c, r = 0.45, e = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: r, ...e }); const g = new THREE.Group();
+    const add = (geo, m, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
+    switch (kind) {
+      case 'pa': add(new THREE.CylinderGeometry(0.06, 0.06, 0.14, 20, 1, true), M(0x2c4f7c, 0.85, { side: THREE.DoubleSide })); break;
+      case 'spo2': add(new THREE.BoxGeometry(0.035, 0.03, 0.045), M(0x2f80ed)); break;
+      case 'temp': add(new THREE.CapsuleGeometry(0.014, 0.1, 4, 10), M(0xf5f5f5, 0.3)).rotation.z = Math.PI / 2; break;
+      case 'glyc': case 'cetone': add(new THREE.BoxGeometry(0.06, 0.1, 0.02), M(0x4b4f58)); add(new THREE.BoxGeometry(0.04, 0.03, 0.005), M(0x9ad7c8, 0.2), 0, 0.02, 0.011); break;
+      case 'ausculter': add(new THREE.CylinderGeometry(0.024, 0.024, 0.012, 20), M(0xc9ced4, 0.3, { metalness: 0.8 })); break;
+      case 'pupilles': add(new THREE.CylinderGeometry(0.008, 0.008, 0.12, 10), M(0x30343a)).rotation.z = Math.PI / 2; break;
+      case 'vvp': case 'bilan': case 'hemoc': add(new THREE.CylinderGeometry(0.006, 0.006, 0.07, 8), M(0xffffff, 0.2, { transparent: true, opacity: 0.85 })).rotation.z = Math.PI / 2; add(new THREE.CylinderGeometry(0.01, 0.01, 0.02, 8), M(kind === 'vvp' ? 0x2fae5a : kind === 'hemoc' ? 0x7d4bd6 : 0xd23b3b), -0.04, 0, 0).rotation.z = Math.PI / 2; break;
+      case 'o2_lun': add(new THREE.TorusGeometry(0.06, 0.004, 6, 24), M(0xeef8ff, 0.2)); break;
+      case 'o2_mhc': add(new THREE.SphereGeometry(0.05, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), M(0xc6f3d8, 0.15, { transparent: true, opacity: 0.6 })); break;
+      case 'scope': case 'ecg': add(new THREE.CylinderGeometry(0.018, 0.018, 0.006, 16), M(0xf4f4f4, 0.6)); break;
+      case 'bladder': add(new THREE.CylinderGeometry(0.02, 0.035, 0.12, 14), M(0x9aa3ad)); break;
+      default: add(new THREE.BoxGeometry(0.06, 0.03, 0.04), M(0xffffff)); break;
+    }
+    return g;
+  }
+  // Fait voler un instrument depuis le doigt (coordonnées écran) jusqu'à un point du corps
+  flyTool(kind, cx, cy, target, ms = 650) {
+    return new Promise((res) => {
+      const el = this.renderer.domElement; const rect = el.getBoundingClientRect();
+      const start = new THREE.Vector3(((cx - rect.left) / rect.width) * 2 - 1, -((cy - rect.top) / rect.height) * 2 + 1, 0.3).unproject(this.camera);
+      const o = this.toolMesh(kind); o.position.copy(start); this.scene.add(o);
+      const mid = start.clone().lerp(target, 0.5); mid.y += 0.25;
+      this.tween(ms, (k) => { const e = 1 - Math.pow(1 - k, 3); const a = start.clone().lerp(mid, e), b = mid.clone().lerp(target, e); o.position.copy(a.lerp(b, e)); o.rotation.y = (1 - e) * 2; }, () => { this.scene.remove(o); res(); });
+    });
+  }
+  // Gestes animés spécifiques une fois l'instrument posé
+  async gesture(kind, zone) {
+    const av = this.avatar; const P = zone?.point?.clone() || new THREE.Vector3(-0.4, 0.75, 0);
+    const side = zone?.side || 'R';
+    if (kind === 'pa') {
+      this.setAttached('cuff', true, side); const cuff = this.attachGroup.children[0];
+      this.sound('pump'); if (cuff) await new Promise((r) => this.tween(2200, (k) => { const f = 1 + Math.sin(Math.min(k * 1.25, 1) * Math.PI) * 0.22; cuff.scale.set(f, 1, f); }, r));
+      this.sound('beep');
+    } else if (kind === 'spo2') { this.setAttached('oxy', true, side); this.sound('beep'); }
+    else if (kind === 'scope') {
+      for (let i = 0; i < 3; i++) { await this.wait(220); this.sound('tick'); }
+      this.setAttached('electrodes', true); this.sound('beep');
+    } else if (kind === 'temp' || kind === 'glyc' || kind === 'cetone') {
+      const o = this.toolMesh(kind); o.position.copy(P).add(new THREE.Vector3(0, 0.06, 0)); this.scene.add(o);
+      if (kind !== 'temp') av?.flinch();
+      await new Promise((r) => this.tween(1300, (k) => { o.position.y = P.y + 0.06 + Math.sin(k * Math.PI * 4) * 0.004; }, r)); this.sound('beep'); this.scene.remove(o);
+    } else if (kind === 'ausculter') {
+      const o = this.toolMesh(kind); this.scene.add(o); const c = P.clone();
+      await new Promise((r) => this.tween(2000, (k) => { const a = Math.floor(k * 4); const pts = [[0.05, 0.07], [0.05, -0.07], [-0.07, 0.07], [-0.07, -0.07]]; const [dx, dz] = pts[Math.min(a, 3)]; o.position.set(c.x + dx, c.y + 0.03, c.z + dz); }, r)); this.scene.remove(o);
+    } else if (kind === 'pupilles') {
+      const l = new THREE.PointLight(0xfff6d8, 2.5, 0.6); const hp = av ? av.bones.Head.getWorldPosition(new THREE.Vector3()) : P; l.position.copy(hp).add(new THREE.Vector3(0.15, 0.2, 0)); this.scene.add(l);
+      const o = this.toolMesh('pupilles'); o.position.copy(l.position); this.scene.add(o);
+      await new Promise((r) => this.tween(1200, (k) => { l.intensity = k < 0.5 ? 3 : 0.5; o.position.z = l.position.z + Math.sin(k * Math.PI * 2) * 0.05; }, r)); this.scene.remove(l, o);
+    } else if (kind === 'vvp' || kind === 'bilan' || kind === 'hemoc') {
+      av?.flinch(); await new Promise((r) => this.tween(950, () => {}, r)); if (kind === 'vvp') { this.setAttached('vvp', true, side); }
+    } else if (kind === 'talk') { av?.talk(1800); this.tween(1900, () => {}); await this.wait(300); }
+    this.render();
+  }
+  // Petits sons synthétiques (aucun fichier, coupés si l'appareil est en silencieux)
+  sound(type) {
+    if (localStorage.getItem('sound') === 'off') return;
+    try {
+      const A = (this.ac ||= new (window.AudioContext || window.webkitAudioContext)()); const t = A.currentTime;
+      const o = A.createOscillator(); const g = A.createGain(); o.connect(g); g.connect(A.destination);
+      if (type === 'pump') { o.type = 'sawtooth'; o.frequency.value = 70; g.gain.setValueAtTime(0, t); for (let i = 0; i < 10; i++) { g.gain.linearRampToValueAtTime(0.05, t + i * 0.18 + 0.05); g.gain.linearRampToValueAtTime(0, t + i * 0.18 + 0.15); } o.start(t); o.stop(t + 1.9); }
+      else { o.type = 'sine'; o.frequency.value = type === 'tick' ? 1800 : 1000; g.gain.setValueAtTime(0.08, t); g.gain.exponentialRampToValueAtTime(0.001, t + (type === 'tick' ? 0.05 : 0.18)); o.start(t); o.stop(t + 0.2); }
+    } catch { /* audio indisponible */ }
+  }
+  // ---------- Zones du corps (pour poser les instruments) ----------
+  zoneAt(cx, cy) {
+    const el = this.renderer.domElement; const rect = el.getBoundingClientRect();
+    if (cx < rect.left || cx > rect.right || cy < rect.top || cy > rect.bottom) return null;
+    const v = new THREE.Vector2(((cx - rect.left) / rect.width) * 2 - 1, -((cy - rect.top) / rect.height) * 2 + 1);
+    const ray = new THREE.Raycaster(); ray.setFromCamera(v, this.camera);
+    const targets = this.avatar ? this.avatar.meshes : this.pickables.filter((o) => o.userData.pick === 'patient');
+    const hit = ray.intersectObjects([...targets, this.blanket], false)[0];
+    if (!hit) return null;
+    if (hit.object === this.blanket) return { zone: 'legs', side: '', label: 'Jambes', point: hit.point };
+    if (!this.avatar) return { zone: 'chest', side: '', label: 'Patient', point: hit.point };
+    const B = this.avatar.bones; const P = hit.point; const side = this.avatar._sideSign();
+    const cand = [['head', 'Head', 'Tête / visage'], ['head', 'Neck', 'Cou'], ['chest', 'Spine2', 'Thorax'], ['chest', 'Spine1', 'Thorax'], ['abdomen', 'Spine', 'Abdomen'], ['abdomen', 'Pelvis', 'Bassin'],
+      ['arm', 'L UpperArm', 'Bras gauche', 'L'], ['arm', 'R UpperArm', 'Bras droit', 'R'], ['arm', 'L Forearm', 'Avant-bras gauche', 'L'], ['arm', 'R Forearm', 'Avant-bras droit', 'R'],
+      ['hand', 'L Hand', 'Main gauche', 'L'], ['hand', 'R Hand', 'Main droite', 'R'], ['legs', 'L Thigh', 'Cuisse gauche'], ['legs', 'R Thigh', 'Cuisse droite'], ['legs', 'L Calf', 'Jambe gauche'], ['legs', 'R Calf', 'Jambe droite']];
+    let best = null; let bd = 1e9;
+    for (const [zone, bn, label, sd] of cand) {
+      const b = B[bn]; if (!b) continue; const bp = b.getWorldPosition(new THREE.Vector3());
+      // pour les membres, on prend le milieu du segment
+      const child = b.children.find((c) => c.isBone); if (child && zone !== 'head' && zone !== 'hand') bp.lerp(child.getWorldPosition(new THREE.Vector3()), 0.5);
+      if (zone === 'head' && bn === 'Head') bp.addScaledVector(new THREE.Vector3(0, 1, 0).applyQuaternion(this.avatar.anchor.getWorldQuaternion(new THREE.Quaternion())), 0.08);
+      const d = bp.distanceTo(P); if (d < bd) { bd = d; best = { zone, side: sd || '', label, point: P }; }
+    }
+    return best;
+  }
+  // ---------- Matériel posé sur le patient ----------
+  setAttached(kind, on, side = 'R') { (this.attached ||= {})[kind] = on ? side : null; this.updateAttachments(); this.render(); }
+  updateAttachments() {
+    const av = this.avatar; if (!av) return;
+    const A = (this.attached ||= {}); const g = (this.attachGroup ||= (() => { const x = new THREE.Group(); this.scene.add(x); return x; })());
+    while (g.children.length) { const c = g.children.pop(); c.traverse((o) => o.geometry?.dispose()); }
+    av.root.updateWorldMatrix(true, true);
+    const B = av.bones; const wp = (n) => B[n]?.getWorldPosition(new THREE.Vector3());
+    const M = (c, r = 0.5, e = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: r, ...e });
+    const along = (o, a, b) => { o.position.copy(a).lerp(b, 0.5); o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize()); };
+    if (A.cuff) { const s = A.cuff; const a = wp(`${s} UpperArm`), b = wp(`${s} Forearm`); if (a && b) { const o = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.058, 0.14, 24, 1, true), M(0x2c4f7c, 0.85, { side: THREE.DoubleSide })); along(o, a, b); g.add(o); const t = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([o.position.clone(), o.position.clone().add(new THREE.Vector3(-0.05, 0.08, 0.06)), new THREE.Vector3(-0.75, 0.82, o.position.z * 0.9), new THREE.Vector3(-0.92, 1.0, -0.6), new THREE.Vector3(-0.98, 1.1, -0.85)]), 30, 0.004, 5), M(0x2a2a2a)); g.add(t); } }
+    if (A.oxy) { const h = wp(`${A.oxy} Hand`), f = B[`${A.oxy} Finger1`] ? wp(`${A.oxy} Finger1`) : null; if (h) { const o = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.03, 0.045), M(0x2f80ed, 0.4)); o.position.copy(f ? h.clone().lerp(f, 1.4) : h); o.position.y += 0.015; g.add(o); } }
+    if (A.electrodes) { const c = wp('Spine2'), n = wp('Neck'); if (c && n) { const up = n.clone().sub(c).normalize(); const sideV = new THREE.Vector3(0, 0, 1); [[0.06, 0.09], [0.06, -0.09], [-0.12, 0.08], [-0.12, -0.07], [-0.02, 0.0]].forEach(([u, sd]) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.006, 16), M(0xf4f4f4, 0.6)); o.position.copy(c).addScaledVector(up, u).addScaledVector(sideV, sd); o.position.y += 0.12; g.add(o); const w = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([o.position.clone(), o.position.clone().add(new THREE.Vector3(-0.12, 0.06, -0.12)), new THREE.Vector3(-0.8, 0.9, -0.45), new THREE.Vector3(-0.95, 1.1, -0.85)]), 24, 0.003, 4), M([0xd23b3b, 0xe8e8e8, 0x2a2a2a, 0x2fae5a, 0xf1c40f][g.children.length % 5])); g.add(w); }); } }
+    if (A.vvp) { const s = A.vvp; const a = wp(`${s} Forearm`), b = wp(`${s} Hand`); if (a && b) { const p = a.clone().lerp(b, 0.7); p.y += 0.04; const d = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.004, 0.04), M(0xf2f6f8, 0.3, { transparent: true, opacity: 0.85 })); d.position.copy(p); g.add(d); const k = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.03, 8), M(0x2fae5a, 0.4)); k.position.copy(p).add(new THREE.Vector3(0, 0.008, 0)); k.rotation.z = Math.PI / 2; g.add(k); this.ivTarget = p.clone(); } }
+    if (this.ivLine && this.ivTarget) { this.scene.remove(this.ivLine); this.ivLine = this.tube([[-0.73, 1.55, 0.78], [-0.55, 1.05, 0.65], [this.ivTarget.x - 0.1, this.ivTarget.y + 0.2, this.ivTarget.z + 0.1], this.ivTarget.toArray()], 0xdcefff); this.ivLine.visible = !!this.state.iv; }
+    g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    this.renderer.shadowMap.needsUpdate = true;
+  }
   view(name) {
-    if (name === 'patient') {
+    if (name === 'top' || name === 'patient') {
+      const w = this.container.clientWidth, h = this.container.clientHeight;
+      // hauteur calculée pour que tout le lit (2,1 m × 1 m) tienne à l'écran, plateau d'outils compris
+      const vf = (this.camera.fov * Math.PI) / 180; const asp = w / h; const hf = 2 * Math.atan(Math.tan(vf / 2) * asp);
+      const along = this.portrait ? vf : hf, across = this.portrait ? hf : vf;
+      let cx = -0.08, cz = 0, hgt = Math.max(1.12 / Math.tan(along / 2), 0.62 / Math.tan(across / 2)) * 1.08;
+
+      if (name === 'patient') {
+        const hp = this.avatar ? this.avatar.bones.Head.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(-0.8, 0.75, 0);
+        cx = hp.x + 0.08; cz = hp.z; hgt = 0.75;
+      }
+      const tx = this.portrait ? cx + 0.08 : cx; this.camera.position.set(tx, 0.7 + hgt, cz + 0.0001); this.controls.target.set(tx, 0.7, cz); this.camera.lookAt(tx, 0.7, cz); this.controls.update(); this.render(); this.curView = name; return;
+    }
+    if (name === 'old-patient') {
       const ref = this.avatar ? this.avatar.anchor.children[0] : this.face;
       const p = new THREE.Vector3(); ref.getWorldPosition(p);
       const n = new THREE.Vector3(0.35, 1, 0.55).applyQuaternion(ref.getWorldQuaternion(new THREE.Quaternion())).normalize();
@@ -472,7 +609,8 @@ export class Room {
   resize() {
     const w = this.container.clientWidth, h = this.container.clientHeight; if (!w || !h) return;
     this.renderer.setSize(w, h, false); this.renderer.domElement.style.width = '100%'; this.renderer.domElement.style.height = '100%';
-    this.camera.aspect = w / h; this.camera.fov = w / h < 1 ? 64 : 52; this.camera.updateProjectionMatrix(); this.render();
+    this.camera.aspect = w / h; this.camera.fov = w / h < 1 ? 50 : 42; this.camera.updateProjectionMatrix();
+    if (this.curView) this.view(this.curView); this.render();
   }
   render() { if (!this.disposed) this.renderer.render(this.scene, this.camera); }
   dispose() {

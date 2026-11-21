@@ -139,6 +139,7 @@ export class Avatar {
   setMorph(name, v) { for (const m of this.morph) { const i = m.morphTargetDictionary[name]; if (i !== undefined) m.morphTargetInfluences[i] = v; } }
   // Expressions selon l'état clinique
   express(s) {
+    this._lastState = s;
     const closed = s.eyes === 'closed' || s.gcs <= 8 || s.acr;
     const drowsy = !closed && s.gcs <= 12;
     const pain = !closed && (s.eva >= 6);
@@ -158,7 +159,7 @@ export class Avatar {
   }
   // Animation légère : respiration (rotation discrète du thorax) et clignements
   tick(dt, t, s) {
-    const B = this.bones;
+    const B = this.bones; this.react(t);
     if (this.baseSpine && B['Spine1'] && !s.acr) {
       const fr = Math.max(4, s.fr || 16); const b = Math.sin(t * Math.PI * 2 * (fr / 60)) * (s.fr > 25 ? 0.035 : 0.02);
       B['Spine1'].quaternion.copy(this.baseSpine).multiply(q1.setFromAxisAngle(new THREE.Vector3(0, 0, 1), b));
@@ -170,6 +171,16 @@ export class Avatar {
       else this.setMorph('AU_41_LidDroop', lid);
       if (this.expr.dysp) { const j = 0.15 + (Math.sin(t * Math.PI * 2 * ((s.fr || 20) / 60)) + 1) * 0.08; this.setMorph('AK_25_JawOpen', j); }
     }
+  }
+  // Réactions : grimace brève (piqûre), parole (mouvements de bouche, tête vers le soignant)
+  flinch() { this._flinch = performance.now(); }
+  talk(ms = 1500) { this._talk = performance.now() + ms; }
+  react(t) {
+    const now = performance.now();
+    if (this._flinch && now - this._flinch < 900) { const k = 1 - (now - this._flinch) / 900; this.setMorph('AK_01_BrowDownLeft', 0.9 * k); this.setMorph('AK_02_BrowDownRight', 0.9 * k); this.setMorph('AK_19_EyeSquintLeft', k); this.setMorph('AK_20_EyeSquintRight', k); this.setMorph('AK_46_MouthStretchLeft', 0.6 * k); this.setMorph('AK_47_MouthStretchRight', 0.6 * k); }
+    else if (this._flinch) { this._flinch = 0; this.express(this._lastState || {}); }
+    if (this._talk && now < this._talk && !this.expr.closed) { this.setMorph('AK_25_JawOpen', 0.12 + Math.abs(Math.sin(t * 13)) * 0.18); this.setMorph('AU_25_LipsPart', 0.6); }
+    else if (this._talk) { this._talk = 0; this.express(this._lastState || {}); }
   }
   dispose() { this.root.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { m.map?.dispose(); m.dispose(); }); } }); }
 }
